@@ -4,7 +4,7 @@ const {join} = require("path")
 
 
 const logError = (message,lineIndex) => {
-    console.error(`rror at line:${lineIndex}: ${message}`)
+    console.error(`Error at line:${lineIndex}: ${message}`)
 }
 
 const lineIsComment = function(line="") {
