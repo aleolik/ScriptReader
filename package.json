@@ -1,0 +1,17 @@
+{
+  "name": "commandapp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "fileSystem.js",
+  "scripts": {
+    "dev": "nodemon ./fileScripter.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chokidar": "^3.5.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

@@ -1,0 +1,1 @@
+# ScriptReader - app,that reads content(commands) of scripts.txt file and interact with file system module

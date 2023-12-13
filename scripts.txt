@@ -1,0 +1,2 @@
+## fileReader reads only from this file
+## "##" at start of the line means that line is commentary and won't be handled by fileReader
