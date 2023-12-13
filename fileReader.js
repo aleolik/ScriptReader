@@ -105,7 +105,7 @@ class File {
                 const size = (await fileHandler.stat()).size
                 const buffer = Buffer.alloc(size)
                 const [offset,length,postion] = [0,size,0] 
-                // read scripts.txt content (as 1 chunk because it has small size content,so no need to asynchronous read every line)
+                // read scripts.txt content
                 await fileHandler.read(
                     buffer,offset,length,postion
                 )
@@ -115,11 +115,11 @@ class File {
                     lineIndex += 1 // we can add at the beginning,because we start from 0 and in .txt files start at 1
                     if (lineIsComment(line)) continue; // line is comment,skip it
                     // line is script,handle it
-                    const [callName,operation,path,data] = spliceScript(line) // data can be null in some cases (delete operation,write without content,etc...)
+                    const [callName,operation,path,data] = spliceScript(line) // data can be null in some cases (delete file/dir;create file without content,etc...)
                     if (!callName) return console.log(`callName cant be undefined or null at line:${lineIndex}`)
                     if (!operation) return console.log(`operation cant be undefined or null at line:${lineIndex}`)
                     if (!path) return console.log(`path cant be undefined or null at line:${lineIndex}`)
-                    // if you work with files
+                    // if line has operation related to file
                     if (availableScripts.file.callName === callName) {
                         switch (operation) {
                             case availableScripts.file.methods.create:
@@ -147,10 +147,10 @@ class File {
                                     break;
                                 }
                             default:
-                                return console.log(`${operation} file is not in list of allowed operations`)
+                                return logError(`${operation} file is not in list of allowed operations`,lineIndex)
                         }
                     }
-                    // if you work with dirs
+                   // if line has operation related to dir
                     else if (availableScripts.dir.callName === callName) {
                         switch (operation) {
                             case availableScripts.dir.methods.make:
@@ -162,7 +162,7 @@ class File {
                                     break;
                                 }
                             default:
-                                return console.log(`${operation} dir is not in list of allowed operations`)
+                                return logError(`${operation} dir is not in list of allowed operations`,lineIndex)
                         }
                     }
                 }
