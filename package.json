@@ -4,7 +4,7 @@
   "description": "",
   "main": "fileSystem.js",
   "scripts": {
-    "dev": "nodemon ./fileScripter.js"
+    "dev": "nodemon ./fileReader.js"
   },
   "author": "",
   "license": "ISC",
