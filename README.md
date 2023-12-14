@@ -1,4 +1,4 @@
-# ScriptReader - app,that watch changes of scripts.txt file,then reads its content(scripts) interacts with file system module
+# ScriptReader - app,that watch changes of scripts.txt file,then reads its content(scripts) and then interacts with file system module
 ## some script cases:
 ### to make dir,create file in it,and append content to file:
     1.dir create dir
