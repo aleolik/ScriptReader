@@ -1,2 +1,3 @@
-## fileReader reads only from this file
 ## "##" at start of the line means that line is commentary and won't be handled by fileReader
+## fileReader reads only from this file!
+## Don't use tab or space on the start of the line!

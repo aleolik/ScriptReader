@@ -2,16 +2,6 @@ const chokidar = require("chokidar");
 const fs = require("fs/promises")
 const {join} = require("path")
 
-
-const logError = (message,lineIndex) => {
-    console.error(`Error at line:${lineIndex}: ${message}`)
-}
-
-const lineIsComment = function(line="") {
-    // line starting with ## , counts as comment and won't be handled
-    return line.length >= 2 && line.substring(0,2) === "##"
-}
-
 const availableScripts = {
     "dir" : {
         "callName":"dir",
@@ -29,12 +19,25 @@ const availableScripts = {
     }
 };
 
-const spliceScript = (script) => {
-    // result.length must be 3 <= result.length <= 4
+
+const modifyErrorText = (message,lineIndex) => {
+    return `Error at line:${lineIndex} in script.txt: ${message}`
+};
+
+const lineIsComment = function(line) {
+    // line starting with ## , counts as comment and won't be handled
+    return line.length >= 2 && line.substring(0,2) === "##"
+};
+
+const spliceScript = (script,lineIndexInScriptFile) => {
     const result = script.split(" ")
-    if (result.length < 3) return result // wrong data,do nothing
-    if (result.length === 3) return result // [callName,operation,path]
-    if (result.length === 4) return result // [callName,operation,path,data]
+    // result.length must be 3 <= result.length <= 4 , otherwise throw error
+    if (result.length < 3) {
+        if (result.length === 0) throw new Error (modifyErrorText("callName cant be undefined or null",lineIndexInScriptFile))
+        if (result.length === 1) throw new Error(modifyErrorText("operation cant be undefined or null",lineIndexInScriptFile))
+        if (result.length === 2) throw new Error(modifyErrorText("path cant be undefined or null",lineIndexInScriptFile))
+    }
+    if (result.length <= 4) return result // [callName,operation,path] or [callName,operation,path,data],data is a must property in some cases
     // if data property has " " in it,then result.length will be 4+
     // handle logic to return result with length equals 4
     for (let i = 4;i<result.length;i++) {
@@ -42,7 +45,25 @@ const spliceScript = (script) => {
         result[3] += " " + result[i]
     }
     return result.slice(0,4)
-}
+};
+
+const allLinesAreCorrect = (lines) => {
+    for (let i = 0;i<lines.length;i++) {
+        const line = lines[i]
+        if (lineIsComment(line)) continue; // line is comment,skip it
+        try {
+            const [callName,operation,path,data] = spliceScript(line,i+1)
+            if (!availableScripts[callName]) throw new Error(modifyErrorText(`"${callName}" is not in list of available callNames!`,i+1))
+            if (!availableScripts[callName]["methods"][operation]) throw new Error(modifyErrorText(`"${callName} ${operation}" is not available operation!`,i+1))
+        } catch (err) {
+            console.error(err)
+            return false
+        }
+    }
+
+    return true
+};
+
 
 class Dir {
     static async createDir(path){
@@ -74,7 +95,7 @@ class File {
         }   
     }
     static async appendToFile(path,data){
-        if (!data) throw new Error("data cant be null")
+        if (!data) throw new Error("data cant be null in append method")
         const file = await fs.open(path,"a+");
         await file.appendFile(data)
         console.log("data to file was appended")
@@ -100,7 +121,12 @@ class File {
             console.log("change event was emited...")
             // open file
             const fileHandler = await fs.open("./scripts.txt","r");
-            // link change event to file handler
+            // link "error" event to file handler
+            fileHandler.on("error",(err) => {
+              if (err) console.log("Error :",err)
+              fileHandler.close();
+            })
+            // link "change" event to file handler
             fileHandler.on("change",async() => {
                 const size = (await fileHandler.stat()).size
                 const buffer = Buffer.alloc(size)
@@ -110,69 +136,66 @@ class File {
                     buffer,offset,length,postion
                 )
                 const lines = buffer.toString().split(/\r?\n/)
+                if (!allLinesAreCorrect(lines)) {
+                     // no need to throw error,method will log it
+                    return fileHandler.emit("error",null)
+                };
                 let lineIndex = 0
                 for (const line of lines) {
                     lineIndex += 1 // we can add at the beginning,because we start from 0 and in .txt files start at 1
                     if (lineIsComment(line)) continue; // line is comment,skip it
                     // line is script,handle it
-                    const [callName,operation,path,data] = spliceScript(line) // data can be null in some cases (delete file/dir;create file without content,etc...)
-                    if (!callName) return console.log(`callName cant be undefined or null at line:${lineIndex}`)
-                    if (!operation) return console.log(`operation cant be undefined or null at line:${lineIndex}`)
-                    if (!path) return console.log(`path cant be undefined or null at line:${lineIndex}`)
-                    // if line has operation related to file
-                    if (availableScripts.file.callName === callName) {
-                        switch (operation) {
-                            case availableScripts.file.methods.create:
-                                try {
-                                    await File.createFile(path,data)
-                                } catch (e) {
-                                    return logError(e.message,lineIndex)
-                                } finally {
+                    const [callName,operation,path,data] = spliceScript(line)
+                    const defaultErrMsg = `Any scenarios exist for : "${callName} ${operation}"`
+                    try {
+                        // if line has operation related to file
+                        if (availableScripts.file.callName === callName) {
+                            switch (operation) {
+                                case availableScripts.file.methods.create:
+                                    await File.createFile(path,data);
                                     break;
-                                }
-                            case availableScripts.file.methods.append:
-                                try {
-                                    await File.appendToFile(path,data)
-                                } catch (e) {
-                                    return logError(e.message,lineIndex)
-                                } finally {
+                                case availableScripts.file.methods.append:
+                                    await File.appendToFile(path,data);
                                     break;
-                                }
-                            case availableScripts.file.methods.delete:
-                                try {
-                                    await File.deleteFile(path)
-                                } catch (e) {
-                                    return logError(e.message,lineIndex)
-                                } finally {
+                                case availableScripts.file.methods.delete:
+                                    await File.deleteFile(path);
                                     break;
-                                }
-                            default:
-                                return logError(`${operation} file is not in list of allowed operations`,lineIndex)
+                                default:
+                                    /*
+                                        default will only work if there is availableScripts[callName] and availableScripts[callName][operation],
+                                        but there is no scenario in switch block
+                                    */
+                                    return fileHandler.emit("error",defaultErrMsg)
+                            }
                         }
-                    }
-                   // if line has operation related to dir
-                    else if (availableScripts.dir.callName === callName) {
-                        switch (operation) {
-                            case availableScripts.dir.methods.make:
-                                try {
-                                    await Dir.createDir(path)
-                                } catch (e) {
-                                    return logError(e.message,lineIndex)
-                                } finally {
+                        // if line has operation related to dir
+                        if (availableScripts.dir.callName === callName) {
+                            switch (operation) {
+                                case availableScripts.dir.methods.make:
+                                    await Dir.createDir(path);
                                     break;
-                                }
-                            default:
-                                return logError(`${operation} dir is not in list of allowed operations`,lineIndex)
+                                default:
+                                    /*
+                                        default will only work if there is availableScripts[callName] and availableScripts[callName][operation],
+                                        but there is no scenario in switch block
+                                    */
+                                    return fileHandler.emit("error",defaultErrMsg)
+                            }
                         }
+                    } catch (e) {
+                        // error found,close file connection
+                        const errMsg = modifyErrorText(e.message,lineIndex)
+                        return fileHandler.emit("error",errMsg)
                     }
                 }
-            await fileHandler.close()
+                // everything worked fine,close file connection
+                fileHandler.close();
+            })
+            // emit change event for file handler
+            fileHandler.emit("change")
         })
-        // emit change event for file handler
-        fileHandler.emit("change")
-        })
-        console.log("App running\nLooking for scripts.txt changes...")    
+        console.log("Events on script.txt file were set\nLooking for changes...")    
     } catch (e) {
-        return logError(e.message)
+        console.error("caught error",e.message)
     }
 })();
