@@ -199,3 +199,11 @@ class File {
         console.error("caught error",e.message)
     }
 })();
+
+module.exports = {
+    spliceScript,
+    allLinesAreCorrect,
+    Dir,
+    lineIsComment,
+    File,
+}

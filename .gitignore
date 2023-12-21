@@ -2,3 +2,4 @@ node_modules
 *.txt
 !script.txt
 /dir
+coverage
